@@ -1,0 +1,85 @@
+name: Test
+
+# Reusable test workflow. Called by pr.yaml (pinned F Prime) and
+# weekly-fprime.yaml (latest F Prime devel).
+on:
+    workflow_call:
+        inputs:
+            fprime-ref:
+                description: nasa/fprime git ref (tag, branch, or SHA) to test against
+                type: string
+                required: false
+                default: v4.2.2
+
+jobs:
+    autocoder:
+        name: Autocoder tests (F Prime ${{ inputs.fprime-ref }})
+        runs-on: ubuntu-latest
+        steps:
+        - uses: actions/checkout@v4
+
+        - name: Checkout F Prime requirements
+          uses: actions/checkout@v4
+          with:
+              repository: nasa/fprime
+              ref: ${{ inputs.fprime-ref }}
+              path: fprime-requirements
+              sparse-checkout: requirements.txt
+              sparse-checkout-cone-mode: false
+
+        - name: Install Python
+          uses: actions/setup-python@v5
+          with:
+              python-version: '3.11'
+
+        - name: Install dependencies
+          run: |
+              python3 -m pip install --upgrade pip
+              python3 -m pip install pytest
+              python3 -m pip install -r requirements.txt
+              # fpp-check from the same fpp release the F Prime ref under test uses
+              python3 -m pip install "$(grep '^fprime-fpp==' fprime-requirements/requirements.txt)"
+              fpp-check --help > /dev/null
+
+        - name: Run tests
+          run: |
+              cd models/TestModels
+              python3 -m pytest -v
+
+    fprime:
+        name: F Prime component unit tests (${{ inputs.fprime-ref }})
+        runs-on: ubuntu-latest
+        steps:
+        - uses: actions/checkout@v4
+
+        - name: Checkout F Prime
+          uses: actions/checkout@v4
+          with:
+              repository: nasa/fprime
+              ref: ${{ inputs.fprime-ref }}
+              path: StarsProj/lib/fprime
+              submodules: recursive
+
+        - name: Install Python
+          uses: actions/setup-python@v5
+          with:
+              python-version: '3.11'
+
+        - name: Install F Prime tools
+          working-directory: StarsProj
+          run: |
+              python3 -m pip install --upgrade pip
+              python3 -m pip install -r requirements.txt
+              fprime-util version-check
+
+        - name: Generate
+          working-directory: StarsProj
+          run: fprime-util generate --ut
+
+        - name: Build
+          working-directory: StarsProj
+          run: fprime-util build --ut -j"$(nproc)"
+
+        - name: Unit test
+          working-directory: StarsProj/build-fprime-automatic-native-ut
+          run: ctest -j"$(nproc)" --output-on-failure

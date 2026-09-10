@@ -29,6 +29,11 @@ This diagram highlights the design and process flow of the QM State Machine Auto
 pip install -r requirements.txt
 ```
 
+- The `fprime` backend tests validate generated FPP with `fpp-check`, which is provided by the `fprime-fpp` package:
+```bash
+pip install fprime-fpp
+```
+
 - Check that it all works by running the test models using the pytest framework
 ```bash
 # Navigate to the TestModels directory
